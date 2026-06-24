@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>POST - Chat & Voice Call Real-Time</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+
+    <style>
+        :root {
+            --bg-app: #f0f2f5;
+            --bg-white: #ffffff;
+            --text-main: #1c1e21;
+            --text-muted: #65676b;
+            --accent-color: #0084ff;
+            --accent-danger: #e41e3f;
+            --border-color: #e4e6eb;
+            --chat-user: #0084ff;
+            --chat-friend: #e4e6eb;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-app);
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* CONTAINER UTAMA (TAMPILAN LAPTOP / DESKTOP) */
+        .app-container {
+            width: 100%;
+            max-width: 1100px;
+            height: 90vh;
+            background-color: var(--bg-white);
+            border-radius: 16px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+            display: flex;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        /* --- SIDEBAR KONTAK --- */
+        .sidebar {
+            width: 320px;
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            background: #f9f9fa;
+            flex-shrink: 0;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .sidebar-header h2 {
+            font-size: 18px;
+            color: var(--text-main);
+            margin-bottom: 5px;
+        }
+
+        .my-id-box {
+            background-color: #e2f1ff;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--accent-color);
+            word-break: break-all;
+        }
+
+        .connect-box {
+            padding: 20px 15px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .connect-box input {
+            padding: 10px 14px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            outline: none;
+            font-size: 13px;
+        }
+
+        .btn-connect {
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        .status-koneksi-teks {
+            font-size: 12px;
+            color: var(--text-muted);
+            padding: 0 15px;
+            margin-top: 10px;
+            font-style: italic;
+        }
+
+        /* --- AREA CHAT UTAMA --- */
+        .chat-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--bg-white);
+        }
+
+        .chat-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .active-user-details {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        /* Tombol back di laptop disembunyikan */
+        #btnBackMobile {
+            display: none; 
+            margin-right: 5px;
+        }
+
+        .avatar {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            background: #ccc;
+            object-fit: cover;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-round {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: none;
+            background-color: var(--bg-app);
+            color: var(--accent-color);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s, transform 0.1s;
+        }
+
+        .btn-round:hover {
+            background-color: var(--border-color);
+        }
+        
+        .btn-round:active {
+            transform: scale(0.95);
+        }
+
+        /* KOTAK PESAN */
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            background-color: #f7f8fa;
+        }
+
+        .message-bubble {
+            max-width: 75%;
+            padding: 10px 14px;
+            border-radius: 18px;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .message-bubble.me {
+            align-self: flex-end;
+            background-color: var(--chat-user);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message-bubble.friend {
+            align-self: flex-start;
+            background-color: var(--chat-friend);
+            color: var(--text-main);
+            border-bottom-left-radius: 4px;
+        }
+
+        /* INPUT CHAT */
+        .chat-input-container {
+            padding: 15px 20px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .chat-input-container input {
+            flex: 1;
+            padding: 12px 18px;
+            border: 1px solid var(--border-color);
+            border-radius: 24px;
+            background-color: var(--bg-app);
+            outline: none;
+            font-size: 14px;
+        }
+
+        /* --- OVERLAY POP-UP CALL --- */
+        .call-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(26, 26, 26, 0.95);
+            z-index: 999;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+
+        .call-profile {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .call-avatar-pulse {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: #555;
+            margin: 0 auto 20px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .call-avatar-pulse::before,
+        .call-avatar-pulse::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border: 3px solid var(--accent-color);
+            border-radius: 50%;
+            left: 0;
+            top: 0;
+            box-sizing: border-box;
+            animation: pulseRadar 2s infinite linear;
+        }
+
+        .call-avatar-pulse::after {
+            animation-delay: 1s;
+        }
+
+        @keyframes pulseRadar {
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(1.8); opacity: 0; }
+        }
+
+        .call-avatar-pulse img {
+            width: 110px;
+            height: 110px;
+            border-radius: 50%;
+            object-fit: cover;
+            z-index: 5;
+        }
+
+        .call-status {
+            font-size: 14px;
+            color: #b0b3b8;
+            margin-top: 8px;
+            letter-spacing: 1px;
+        }
+
+        .call-controls {
+            display: flex;
+            gap: 25px;
+        }
+
+        .btn-call-action {
+            width: 55px;
+            height: 55px;
+            border-radius: 50%;
+            border: none;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s;
+        }
+
+        .btn-call-action:active {
+            transform: scale(0.9);
+        }
+
+        .btn-call-action.mute {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+        .btn-call-action.mute.active {
+            background-color: var(--accent-color);
+        }
+
+        .btn-call-action.hangup {
+            background-color: var(--accent-danger);
+        }
+
+        /* LOGIKA MEDIA QUERIES: RESPONSIVE KHUSUS LAYAR HP */
+        @media (max-width: 768px) {
+            body {
+                padding: 0;
+                align-items: stretch;
+                justify-content: stretch;
+            }
+
+            .app-container {
+                height: 100vh;
+                border-radius: 0;
+                box-shadow: none;
+                max-width: none;
+            }
+
+            .sidebar {
+                width: 100%;
+                display: flex;
+            }
+
+            .chat-area {
+                display: none;
+                width: 100%;
+            }
+
+            .app-container.show-chat-mobile .sidebar {
+                display: none;
+            }
+
+            .app-container.show-chat-mobile .chat-area {
+                display: flex;
+            }
+
+            #btnBackMobile {
+                display: flex;
+            }
+            
+            .message-bubble {
+                max-width: 85%;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app-container" id="mainAppContainer">
+        
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h2>POST Obrolan</h2>
+                <div style="margin-top: 10px;">
+                    <span style="font-size: 11px; color: var(--text-muted);">ID KONEKSI KAMU:</span>
+                    <div class="my-id-box" id="myPeerId">Mendapatkan ID...</div>
+                </div>
+            </div>
+
+            <div class="connect-box">
+                <input type="text" id="inputPeerIdTeman" placeholder="Masukkan ID Peer Teman...">
+                <button class="btn-connect" onclick="hubungkanKeTeman()">Sambungkan Chat ⚡</button>
+            </div>
+            
+            <div class="status-koneksi-teks" id="teksStatusKoneksi">Belum terhubung ke siapapun.</div>
+        </div>
+
+        <div class="chat-area">
+            <div class="chat-header">
+                <div class="active-user-details">
+                    <button class="btn-round" id="btnBackMobile" onclick="tutupChatMobile()" title="Kembali ke Kontak">
+                        <span class="material-icons-round">arrow_back</span>
+                    </button>
+                    
+                    <img class="avatar" src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100" alt="">
+                    <div>
+                        <h4 id="namaTargetChat">Menunggu Teman...</h4>
+                        <p style="font-size: 11px; color: var(--text-muted);" id="statusTargetSub">Koneksikan ID di samping</p>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <button class="btn-round" onclick="mulaiPanggilanSuara()" title="Mulai Voice Call">
+                        <span class="material-icons-round">call</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="chat-messages" id="boxPesan">
+                <div class="message-bubble friend">Sistem: Selamat datang! Bagikan ID Kamu di sebelah kiri ke temanmu, atau masukkan ID mereka untuk memulai obrolan nyata.</div>
+            </div>
+
+            <div class="chat-input-container">
+                <input type="text" id="inputPesan" placeholder="Ketik pesan di sini..." onkeypress="cekEnter(event)">
+                <button class="btn-round" style="background-color: var(--accent-color); color: white;" onclick="kirimPesanTeks()">
+                    <span class="material-icons-round">send</span>
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="call-overlay" id="jendelaPanggilan">
+        <div class="call-profile">
+            <div class="call-avatar-pulse">
+                <img src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200" alt="">
+            </div>
+            <h2 style="font-size: 24px;" id="callTargetNama">Teman Obrolan</h2>
+            <div class="call-status" id="callStatusTeks">MENELPON...</div>
+        </div>
+        
+        <div class="call-controls">
+            <button class="btn-call-action mute" id="btnMute" onclick="toggleMuteMic()">
+                <span class="material-icons-round">mic</span>
+            </button>
+            <button class="btn-call-action hangup" onclick="akhiriPanggilan()">
+                <span class="material-icons-round">call_end</span>
+            </button>
+        </div>
+    </div>
+
+    <audio id="pemutarAudioLawan" autoplay playsinline></audio>
+
+    <script>
+        const mainAppContainer = document.getElementById('mainAppContainer');
+        const boxPesan = document.getElementById('boxPesan');
+        const inputPesan = document.getElementById('inputPesan');
+        const jendelaPanggilan = document.getElementById('jendelaPanggilan');
+        const pemutarAudioLawan = document.getElementById('pemutarAudioLawan');
+        const teksStatusKoneksi = document.getElementById('teksStatusKoneksi');
+
+        let peer = null;
+        let koneksiData = null; 
+        let panggilanSuara = null; 
+        let aliranSuaraLokal = null;
+        let idTemanAktif = null;
+
+        // 1. INISIALISASI PEERJS + KONFIGURASI TURN SERVER UNTUK TEMAN JARAK JAUH
+        peer = new Peer({
+            config: {
+                'iceServers': [
+                    { 'urls': 'stun:stun.l.google.com:19302' },
+                    { 'urls': 'stun:stun1.l.google.com:19302' },
+                    {
+                        'urls': [
+                            'turn:openrelay.metered.ca:80',
+                            'turn:openrelay.metered.ca:443',
+                            'turn:openrelay.metered.ca:443?transport=tcp'
+                        ],
+                        'username': 'openrelayproject',
+                        'credential': 'openrelayproject'
+                    }
+                ]
+            }
+        });
+
+        peer.on('open', function(id) {
+            document.getElementById('myPeerId').innerText = id;
+            teksStatusKoneksi.innerText = "Siap menerima koneksi.";
+        });
+
+        // 2. LOGIKA MENERIMA KONEKSI CHAT DARI ORANG LAIN
+        peer.on('connection', function(conn) {
+            koneksiData = conn;
+            idTemanAktif = conn.peer;
+            siapkanKanalChat();
+        });
+
+        // 3. LOGIKA MENERIMA TELEPON MASUK
+        peer.on('call', function(call) {
+            panggilanSuara = call;
+            idTemanAktif = call.peer;
+            
+            mainAppContainer.classList.add('show-chat-mobile');
+
+            if (confirm("Ada panggilan suara masuk dari:\n" + idTemanAktif + "\n\nAngkat panggilan?")) {
+                jendelaPanggilan.style.display = "flex";
+                document.getElementById('callStatusTeks').innerText = "MENYAMBUNGKAN AUDIO...";
+                
+                navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+                .then(function(stream) {
+                    aliranSuaraLokal = stream;
+                    panggilanSuara.answer(stream);
+                    
+                    panggilanSuara.on('stream', function(remoteStream) {
+                        pemutarAudioLawan.srcObject = remoteStream;
+                        // Paksa browser memutar suara (Mengatasi Kebijakan Autoplay)
+                        pemutarAudioLawan.play().catch(e => console.log("Autoplay diblokir:", e)); 
+                        document.getElementById('callStatusTeks').innerText = "BERBICARA... 🎙️";
+                    });
+                })
+                .catch(function(err) {
+                    alert("Gagal mengakses mikrofon: " + err);
+                    akhiriPanggilan();
+                });
+            } else {
+                call.close();
+                tutupChatMobile();
+            }
+        });
+
+        // 4. FUNGSI MENYAMBUNGKAN CHAT (Pihak yang klik tombol)
+        function hubungkanKeTeman() {
+            const idTarget = document.getElementById('inputPeerIdTeman').value.trim();
+            if (idTarget === "") return alert("Masukkan ID teman terlebih dahulu!");
+
+            teksStatusKoneksi.innerText = "Menghubungkan...";
+            
+            koneksiData = peer.connect(idTarget);
+            idTemanAktif = idTarget;
+            siapkanKanalChat();
+        }
+
+        // 5. ATUR EVENT HANDLER CHAT TERKONEKSI
+        function siapkanKanalChat() {
+            koneksiData.on('open', function() {
+                mainAppContainer.classList.add('show-chat-mobile');
+
+                teksStatusKoneksi.innerText = "Terhubung dengan " + idTemanAktif;
+                document.getElementById('namaTargetChat').innerText = "Teman (" + idTemanAktif.substring(0,6) + "...)";
+                document.getElementById('statusTargetSub').innerText = "Terhubung secara aman";
+                
+                boxPesan.innerHTML = '<div class="message-bubble friend">Sistem: Berhasil terhubung! Kalian sekarang bisa saling berkirim pesan dan melakukan Voice Call.</div>';
+            });
+
+            koneksiData.on('data', function(data) {
+                tampilkanPesan(data, "friend");
+            });
+
+            koneksiData.on('close', function() {
+                teksStatusKoneksi.innerText = "Koneksi terputus.";
+                document.getElementById('namaTargetChat').innerText = "Menunggu Teman...";
+                document.getElementById('statusTargetSub').innerText = "Koneksikan ID di samping";
+                tutupChatMobile();
+            });
+        }
+
+        function tutupChatMobile() {
+            mainAppContainer.classList.remove('show-chat-mobile');
+        }
+
+        // 6. FUNGSI KIRIM CHAT TEKS
+        function kirimPesanTeks() {
+            const teks = inputPesan.value.trim();
+            if (teks === "") return;
+
+            if (koneksiData && koneksiData.open) {
+                koneksiData.send(teks); 
+                tampilkanPesan(teks, "me");
+                inputPesan.value = "";
+            } else {
+                alert("Kamu belum terhubung dengan teman manapun!");
+            }
+        }
+
+        function tampilkanPesan(teks, pengirim) {
+            const bubble = document.createElement('div');
+            bubble.className = "message-bubble " + pengirim;
+            bubble.innerText = teks;
+            boxPesan.appendChild(bubble);
+            boxPesan.scrollTop = boxPesan.scrollHeight;
+        }
+
+        function cekEnter(e) {
+            if (e.key === 'Enter') kirimPesanTeks();
+        }
+
+        // 7. FUNGSI MEMULAI TELEPON (OUTGOING CALL)
+        function mulaiPanggilanSuara() {
+            if (!idTemanAktif) return alert("Kamu harus menyambungkan chat dengan teman dulu!");
+
+            jendelaPanggilan.style.display = "flex";
+            document.getElementById('callStatusTeks').innerText = "MEMANGGIL...";
+
+            navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+            .then(function(stream) {
+                aliranSuaraLokal = stream;
+                panggilanSuara = peer.call(idTemanAktif, stream);
+                
+                panggilanSuara.on('stream', function(remoteStream) {
+                    pemutarAudioLawan.srcObject = remoteStream;
+                    // Paksa browser memutar suara (Mengatasi Kebijakan Autoplay)
+                    pemutarAudioLawan.play().catch(e => console.log("Autoplay diblokir:", e)); 
+                    document.getElementById('callStatusTeks').innerText = "BERBICARA... 🎙️";
+                });
+            })
+            .catch(function(err) {
+                alert("Gagal mengakses mikrofon: " + err);
+                akhiriPanggilan();
+            });
+        }
+
+        // 8. FUNGSI AKHIRI PANGGILAN
+        function akhiriPanggilan() {
+            jendelaPanggilan.style.display = "none";
+            
+            if (panggilanSuara) {
+                panggilanSuara.close();
+                panggilanSuara = null;
+            }
+            if (aliranSuaraLokal) {
+                aliranSuaraLokal.getTracks().forEach(track => track.stop());
+                aliranSuaraLokal = null;
+            }
+            pemutarAudioLawan.srcObject = null;
+        }
+
+        // 9. FUNGSI MUTE MIKROFON
+        function toggleMuteMic() {
+            const btn = document.getElementById('btnMute');
+            btn.classList.toggle('active');
+
+            if (aliranSuaraLokal) {
+                const trackAudio = aliranSuaraLokal.getAudioTracks()[0];
+                if (btn.classList.contains('active')) {
+                    btn.querySelector('span').innerText = "mic_off";
+                    trackAudio.enabled = false;
+                } else {
+                    btn.querySelector('span').innerText = "mic";
+                    trackAudio.enabled = true;
+                }
+            }
+        }
+    </script>
+</body>
+</html>
